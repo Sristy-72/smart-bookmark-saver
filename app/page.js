@@ -120,11 +120,11 @@ async function addBookmark(e) {
     return (
       <div className="flex h-screen justify-center items-center">
         <button
-          onClick={login}
-          className="bg-gray-800 text-white px-4 py-2 rounded"
-        >
-          Login with Google
-        </button>
+  onClick={login}
+  className="bg-blue-500 hover:bg-blue-600 transition px-6 py-3 rounded-xl shadow-lg"
+>
+  Continue with Google
+</button>
       </div>
     );
   }
