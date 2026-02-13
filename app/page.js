@@ -154,11 +154,10 @@ async function addBookmark(e) {
           className="border p-2 flex-1"
           required
         />
-
-        <button className="bg-black text-white px-4">
-          Add
-        </button>
-
+       <button className="bg-blue-500 hover:bg-blue-600 px-4 rounded transition">
+       Add
+      </button>
+        
       </form>
 
       <div className="space-y-2">
