@@ -89,33 +89,39 @@ export default function Home() {
     setEditingId(bookmark.id);
   }
 
+function isValidURL(link) {
+  try {
+    const parsed = new URL(link);
+
+    // allow only http or https
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ;
+  } catch {
+    return false;
+  }
+}
 
   
   async function addBookmark(e) {
-    e.preventDefault();
 
-    if (editingId) {
-      // UPDATE existing bookmark
-      await supabase
-        .from("bookmarks")
-        .update({ title, url })
-        .eq("id", editingId);
+  e.preventDefault();
 
-      setEditingId(null);
-    } else {
-      // ADD new bookmark
-      await supabase.from("bookmarks").insert({
-        title,
-        url,
-        user_id: session.user.id,
-      });
-    }
-
-    fetchBookmarks();
-
-    setTitle("");
-    setUrl("");
+  if (!isValidURL(url)) {
+    alert("Please enter a valid URL (example: https://google.com)");
+    return;
   }
+
+  await supabase.from("bookmarks").insert({
+    title,
+    url,
+    user_id: session.user.id
+  });
+
+  fetchBookmarks();
+
+  setTitle("");
+  setUrl("");
+}
+
 
   async function deleteBookmark(id) {
     await supabase.from("bookmarks").delete().eq("id", id);
