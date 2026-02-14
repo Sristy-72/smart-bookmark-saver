@@ -4,38 +4,38 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function Home() {
-
+  const [editingId, setEditingId] = useState(null);
   const [session, setSession] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  
 
-  
+  const user = session?.user;
+  const userName = user?.user_metadata?.full_name || user?.email;
+  const userAvatar = user?.user_metadata?.avatar_url;
+
   useEffect(() => {
-
-   
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
     });
 
- 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
-      }
+      },
     );
 
     return () => {
       listener.subscription.unsubscribe();
     };
-
   }, []);
-
 
   async function login() {
     await supabase.auth.signInWithOAuth({
-      provider: "google"
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
   }
 
@@ -43,10 +43,7 @@ export default function Home() {
     await supabase.auth.signOut();
   }
 
- 
-
   async function fetchBookmarks() {
-
     const { data } = await supabase
       .from("bookmarks")
       .select("*")
@@ -55,132 +52,256 @@ export default function Home() {
     setBookmarks(data || []);
   }
 
-
   useEffect(() => {
     if (session) {
       fetchBookmarks();
     }
   }, [session]);
 
-  
-
   useEffect(() => {
-
     if (!session) return;
 
     const channel = supabase
       .channel("realtime-bookmarks")
       .on(
-  "postgres_changes",
-  {
-    event: "*",
-    schema: "public",
-    table: "bookmarks"
-  },
-  (payload) => {
-    console.log("Realtime event:", payload);
-    fetchBookmarks();
-  }
-)
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bookmarks",
+        },
+        (payload) => {
+          console.log("Realtime event:", payload);
+          fetchBookmarks();
+        },
+      )
 
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-
   }, [session]);
 
-  
-async function addBookmark(e) {
+  function startEdit(bookmark) {
+    setTitle(bookmark.title);
+    setUrl(bookmark.url);
+    setEditingId(bookmark.id);
+  }
 
-  e.preventDefault();
-
-  await supabase.from("bookmarks").insert({
-    title,
-    url,
-    user_id: session.user.id
-  });
-
-  fetchBookmarks();   
-
-  setTitle("");
-  setUrl("");
-}
-  
 
   
+  async function addBookmark(e) {
+    e.preventDefault();
+
+    if (editingId) {
+      // UPDATE existing bookmark
+      await supabase
+        .from("bookmarks")
+        .update({ title, url })
+        .eq("id", editingId);
+
+      setEditingId(null);
+    } else {
+      // ADD new bookmark
+      await supabase.from("bookmarks").insert({
+        title,
+        url,
+        user_id: session.user.id,
+      });
+    }
+
+    fetchBookmarks();
+
+    setTitle("");
+    setUrl("");
+  }
+
   async function deleteBookmark(id) {
     await supabase.from("bookmarks").delete().eq("id", id);
     fetchBookmarks();
   }
 
-  
+  async function clearAllBookmarks() {
+    if (!confirm("Are you sure you want to delete all bookmarks?")) {
+      return;
+    }
+
+    await supabase.from("bookmarks").delete().eq("user_id", session.user.id);
+
+    fetchBookmarks();
+  }
+
   if (!session) {
-    return (
-      <div className="flex h-screen justify-center items-center">
+  return (
+    <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center px-4">
+
+      {/* App Title */}
+      <h1 className="text-5xl font-bold text-white mb-4 text-center">
+        Smart Bookmark App
+      </h1>
+
+      <p className="text-gray-400 mb-10 text-center">
+        Save and manage your favorite links effortlessly 
+      </p>
+
+      {/* Login Card */}
+      
+
         <button
-  onClick={login}
-  className="bg-blue-500 hover:bg-blue-600 transition px-6 py-3 rounded-xl shadow-lg"
->
-  Continue with Google
-</button>
-      </div>
-    );
+          onClick={login}
+          className="flex items-center gap-3 bg-blue-900 hover:bg-blue-600 transition px-6 py-3 rounded-xl text-white font-medium"
+        >
+
+          {/* Google Icon */}
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            className="w-5 h-5"
+          />
+
+          Continue with Google
+
+        </button>
+
+      
+
+    </div>
+  );
+}
+
+
+
+  function getGreeting() {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
   }
 
   return (
-    <main className="max-w-xl mx-auto p-10">
+    <main className="min-h-screen bg-gray-950 text-white px-4 sm:px-6 md:px-8 py-6">
+      <div className="max-w-2xl mx-auto">
+        {/* HEADER */}
 
-      <div className="flex justify-between mb-6">
-        <h1 className="text-xl font-bold">Smart Bookmark App</h1>
-        <button onClick={logout}>Logout</button>
-      </div>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
 
-      <form onSubmit={addBookmark} className="flex gap-2 mb-6">
+  {/* Greeting section */}
+  <div className="flex items-center gap-3">
 
-        <input
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="border p-2 flex-1"
-          required
-        />
-
-        <input
-          placeholder="URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="border p-2 flex-1"
-          required
-        />
-       <button className="bg-blue-500 hover:bg-blue-600 px-4 rounded transition">
-       Add
-      </button>
-        
-      </form>
-
-      <div className="space-y-2">
-
-       {bookmarks.map((b) => (
-  <div key={b.id} className="border p-3 flex justify-between">
+    {/* Profile image */}
+    {userAvatar && (
+      <img
+        src={userAvatar}
+        alt="profile"
+        className="w-12 h-12 rounded-full"
+      />
+    )}
 
     <div>
-      <p>{b.title}</p>
-      <a href={b.url} target="_blank" className="text-blue-400">
-        {b.url}
-      </a>
+      <p className="text-lg text-gray-300">
+        {getGreeting()},
+      </p>
+
+      <h2 className="text-2xl font-bold">
+        {userName}
+      </h2>
     </div>
 
-    <button onClick={() => deleteBookmark(b.id)}>
-      ❌
+  </div>
+
+
+  {/* Buttons section */}
+  <div className="flex gap-2">
+
+    <button
+      onClick={clearAllBookmarks}
+      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition"
+    >
+      Clear All
+    </button>
+
+    <button
+      onClick={logout}
+      className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg"
+    >
+      Logout
     </button>
 
   </div>
-))}
 
+</div>
+
+
+        {/* FORM */}
+        <form
+          onSubmit={addBookmark}
+          className="bg-gray-900 p-4 rounded-xl mb-6 flex flex-col sm:flex-row gap-3"
+        >
+          <input
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 w-full outline-none focus:border-blue-400"
+          />
+
+          <input
+            placeholder="URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 w-full outline-none focus:border-blue-400"
+          />
+
+          <button className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded transition">
+            {editingId ? "Update" : "Add"}
+          </button>
+        </form>
+
+        {/* BOOKMARK LIST */}
+
+        <div className="space-y-3">
+          {bookmarks.length === 0 && (
+            <p className="text-center text-gray-400 py-10">
+              No bookmarks yet — add your first one 🚀
+            </p>
+          )}
+
+          {bookmarks.map((b) => (
+            <div
+              key={b.id}
+              className="border border-gray-700 bg-gray-900 rounded-lg p-4 flex flex-col sm:flex-row sm:justify-between gap-3 hover:scale-[1.02] transition"
+            >
+              <div>
+                <p className="font-semibold">{b.title}</p>
+
+                <a
+                  href={b.url}
+                  target="_blank"
+                  className="text-blue-400 text-sm break-all"
+                >
+                  {b.url}
+                </a>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => startEdit(b)}
+                  className="text-yellow-400 hover:text-yellow-500"
+                >
+                  ✏️
+                </button>
+
+                <button
+                  onClick={() => deleteBookmark(b.id)}
+                  className="text-red-400 hover:text-red-500"
+                >
+                  ❌
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-
     </main>
   );
 }
