@@ -104,25 +104,18 @@ function isValidURL(link) {
   async function addBookmark(e) {
 
   e.preventDefault();
-
-  // Trim removes spaces
-  if (title.trim().length === 0) {
+ if (title.trim().length === 0) {
     alert("Title cannot be empty");
     return;
   }
-
-  const fixedURL = normalizeURL(url);
-
-  try {
-    new URL(fixedURL);
-  } catch {
-    alert("Please enter a valid URL");
+  if (!isValidURL(url)) {
+    alert("Please enter a valid URL (example: https://google.com)");
     return;
   }
 
   await supabase.from("bookmarks").insert({
     title,
-    url: fixedURL,
+    url,
     user_id: session.user.id
   });
 
@@ -131,7 +124,6 @@ function isValidURL(link) {
   setTitle("");
   setUrl("");
 }
-
 
 
   async function deleteBookmark(id) {
